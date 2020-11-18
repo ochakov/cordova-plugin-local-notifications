@@ -27,6 +27,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.UserManager;
+import android.os.Handler;
 
 import org.json.JSONObject;
 
@@ -55,25 +56,31 @@ abstract public class AbstractRestoreReceiver extends BroadcastReceiver {
      * @param intent  Received intent with content data
      */
     @Override
-    public void onReceive (Context context, Intent intent) {
-        String action = intent.getAction();
+    public void onReceive (final Context context, final Intent intent) {
+        
+        final String action = intent.getAction();
+        final Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (SDK_INT >= 24) {
+                  UserManager um = (UserManager) context.getSystemService(UserManager.class);
+                  if (um == null || um.isUserUnlocked() == false) return;
+                }
 
-        if (SDK_INT >= 24) {
-          UserManager um = (UserManager) context.getSystemService(UserManager.class);
-          if (um == null || um.isUserUnlocked() == false) return;
-        }
+                Manager mgr               = Manager.getInstance(context);
+                List<JSONObject> toasts = mgr.getOptions();
 
-        Manager mgr               = Manager.getInstance(context);
-        List<JSONObject> toasts = mgr.getOptions();
+                for (JSONObject data : toasts) {
+                    Options options    = new Options(context, data);
+                    Request request    = new Request(options);
+                    Builder builder    = new Builder(options);
+                    Notification toast = buildNotification(builder);
 
-        for (JSONObject data : toasts) {
-            Options options    = new Options(context, data);
-            Request request    = new Request(options);
-            Builder builder    = new Builder(options);
-            Notification toast = buildNotification(builder);
-
-            onRestore(request, toast);
-        }
+                    onRestore(request, toast);
+                }
+            }
+        }, 5000);
     }
 
     /**
