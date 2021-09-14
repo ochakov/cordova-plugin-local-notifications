@@ -658,9 +658,12 @@ public final class Options {
         if (tag == null)
             return null;
 
-        MediaSessionCompat session = new MediaSessionCompat(context, tag);
-
-        return session.getSessionToken();
+        try {
+            MediaSessionCompat session = new MediaSessionCompat(context, tag);
+            return session.getSessionToken();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
