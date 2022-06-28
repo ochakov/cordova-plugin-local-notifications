@@ -101,6 +101,7 @@
         </config-file>
 
         <config-file target="AndroidManifest.xml" parent="/manifest/application">
+
             <provider
                 android:name="androidx.core.content.FileProvider"
                 android:authorities="${applicationId}.localnotifications.provider"
@@ -110,7 +111,7 @@
                     android:name="android.support.FILE_PROVIDER_PATHS"
                     android:resource="@xml/localnotification_provider_paths"/>
             </provider>
-
+                
             <receiver
                 android:name="de.appplant.cordova.plugin.localnotification.TriggerReceiver"
                 android:exported="false" />
@@ -123,15 +124,6 @@
                 android:name="de.appplant.cordova.plugin.localnotification.ClickReceiver"
                 android:exported="false" />
 
-            <receiver
-                android:name="de.appplant.cordova.plugin.localnotification.RestoreReceiver"
-                android:directBootAware="true"
-                android:exported="false" >
-                <intent-filter>
-                    <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
-                    <action android:name="android.intent.action.BOOT_COMPLETED" />
-                </intent-filter>
-            </receiver>
         </config-file>
 
         <config-file target="AndroidManifest.xml" parent="/manifest">
