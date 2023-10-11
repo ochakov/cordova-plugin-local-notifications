@@ -187,7 +187,6 @@ public final class Notification {
      * @param receiver Receiver to handle the trigger event.
      */
     void schedule(Request request, Class<?> receiver) {
-        if (checkAlarmPermission()) {
             List<Pair<Date, Intent>> intents = new ArrayList<Pair<Date, Intent>>();
             Set<String> ids = new ArraySet<String>();
             AlarmManager mgr = getAlarmMgr();
@@ -242,19 +241,37 @@ public final class Notification {
                 }
 
                 try {
+                boolean allowExact = checkAlarmPermission();
+
                     switch (options.getPrio()) {
                         case PRIORITY_MIN:
+                        if (allowExact) {
                             mgr.setExact(RTC, time, pi);
+                        } else {
+                            mgr.set(RTC, time, pi);
+                        }
                             break;
                         case PRIORITY_MAX:
                             if (SDK_INT >= M) {
+                            if (allowExact) {
                                 mgr.setExactAndAllowWhileIdle(RTC_WAKEUP, time, pi);
                             } else {
+                                mgr.setAndAllowWhileIdle(RTC_WAKEUP, time, pi);
+                            }
+                        } else {
+                            if (allowExact) {
                                 mgr.setExact(RTC, time, pi);
+                            } else {
+                                mgr.set(RTC, time, pi);
+                            }
                             }
                             break;
                         default:
+                        if (allowExact) {
                             mgr.setExact(RTC_WAKEUP, time, pi);
+                        } else {
+                            mgr.set(RTC_WAKEUP, time, pi);
+                        }
                             break;
                         }
                     } catch (Exception ignore) {
@@ -263,7 +280,6 @@ public final class Notification {
                     }
             }
         }
-    }
 
     /**
      * Trigger local notification specified by options.
