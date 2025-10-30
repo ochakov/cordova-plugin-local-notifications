@@ -23,13 +23,29 @@
 
 package de.appplant.cordova.plugin.notification;
 
+import static android.os.Build.VERSION.SDK_INT;
+import static android.os.Build.VERSION_CODES.O;
+
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.VectorDrawable;
 import android.net.Uri;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationCompat.MessagingStyle.Message;
+
+import androidx.annotation.DrawableRes;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationCompat.MessagingStyle.Message;
 import android.support.v4.media.session.MediaSessionCompat;
+import androidx.core.app.Person;
+import androidx.core.graphics.drawable.IconCompat;
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -43,13 +59,21 @@ import de.appplant.cordova.plugin.notification.action.Action;
 import de.appplant.cordova.plugin.notification.action.ActionGroup;
 import de.appplant.cordova.plugin.notification.util.AssetUtil;
 
-import static android.support.v4.app.NotificationCompat.DEFAULT_LIGHTS;
-import static android.support.v4.app.NotificationCompat.DEFAULT_SOUND;
-import static android.support.v4.app.NotificationCompat.DEFAULT_VIBRATE;
-import static android.support.v4.app.NotificationCompat.PRIORITY_MAX;
-import static android.support.v4.app.NotificationCompat.PRIORITY_MIN;
-import static android.support.v4.app.NotificationCompat.VISIBILITY_PUBLIC;
-import static android.support.v4.app.NotificationCompat.VISIBILITY_SECRET;
+import static androidx.core.app.NotificationCompat.DEFAULT_LIGHTS;
+import static androidx.core.app.NotificationCompat.DEFAULT_SOUND;
+import static androidx.core.app.NotificationCompat.DEFAULT_VIBRATE;
+import static androidx.core.app.NotificationCompat.PRIORITY_DEFAULT;
+import static androidx.core.app.NotificationCompat.PRIORITY_HIGH;
+import static androidx.core.app.NotificationCompat.PRIORITY_LOW;
+import static androidx.core.app.NotificationCompat.PRIORITY_MAX;
+import static androidx.core.app.NotificationCompat.PRIORITY_MIN;
+import static androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC;
+import static androidx.core.app.NotificationCompat.VISIBILITY_SECRET;
+import static androidx.core.app.NotificationManagerCompat.IMPORTANCE_DEFAULT;
+import static androidx.core.app.NotificationManagerCompat.IMPORTANCE_HIGH;
+import static androidx.core.app.NotificationManagerCompat.IMPORTANCE_LOW;
+import static androidx.core.app.NotificationManagerCompat.IMPORTANCE_MAX;
+import static androidx.core.app.NotificationManagerCompat.IMPORTANCE_MIN;
 
 /**
  * Wrapper around the JSON object passed through JS which contains all
@@ -57,6 +81,25 @@ import static android.support.v4.app.NotificationCompat.VISIBILITY_SECRET;
  * methods to convert independent values into platform specific values.
  */
 public final class Options {
+
+    // Default Channel ID for SDK < 26
+    static final String DEFAULT_CHANNEL_ID = "default-channel-id";
+
+    // Silent channel
+    static final String SILENT_CHANNEL_ID = "silent-channel-id";
+    static final CharSequence SILENT_CHANNEL_NAME = "Silent Notifications";
+
+    // Vibrate only channel
+    static final String VIBRATE_CHANNEL_ID = "vibrate-channel-id";
+    static final CharSequence VIBRATE_CHANNEL_NAME = "Low Priority Notifications";
+
+    // Sound only channel
+    static final String SOUND_CHANNEL_ID = "sound-channel-id";
+    static final CharSequence SOUND_CHANNEL_NAME = "Medium Priority Notifications";
+
+    // Sound and vibrate channel
+    static final String SOUND_VIBRATE_CHANNEL_ID = "sound-vibrate-channel-id";
+    static final CharSequence SOUND_VIBRATE_CHANNEL_NAME = "High Priority Notifications";
 
     // Key name for bundled sound extra
     static final String EXTRA_SOUND = "NOTIFICATION_SOUND";
@@ -66,6 +109,9 @@ public final class Options {
 
     // Default icon path
     private static final String DEFAULT_ICON = "res://icon";
+
+    // Default icon type
+    private static final String DEFAULT_ICON_TYPE = "square";
 
     // The original JSON object
     private final JSONObject options;
@@ -174,6 +220,11 @@ public final class Options {
     }
 
     /**
+     * Whether or not to trigger a notification when the app is in the foreground.
+     */
+    public boolean triggerInForeground() { return options.optBoolean("foreground", false); }
+
+    /**
      * Gets the value of the silent flag.
      */
     boolean isSilent() {
@@ -208,11 +259,59 @@ public final class Options {
         return options.optLong("timeoutAfter");
     }
 
+
     /**
      * The channel id of that notification.
      */
     String getChannel() {
-        return options.optString("channel", Manager.CHANNEL_ID);
+        // If we have a low enough SDK for it not to matter,
+        // short-circuit.
+        if (SDK_INT < O) {
+            return Manager.CHANNEL_ID;
+        }
+
+        String channelId = options.optString("channelId", null);
+        // if the channel id is not set, we use the default channel
+        if (channelId == null) {
+           return Manager.CHANNEL_ID;
+        }
+
+        NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationChannel channel = notificationManager.getNotificationChannel(channelId);
+
+        if (channel != null)
+            return channelId;
+
+        // Create a new channel with the options provided if it does not exist
+        Uri soundUri = getSound();
+        boolean hasSound = !isWithoutSound();
+        boolean shouldVibrate = isWithVibration();
+        CharSequence channelName = options.optString("channelName", null);
+        int priority = options.optInt("priority", 0);
+        int importance = IMPORTANCE_DEFAULT;
+        switch (priority){
+            case PRIORITY_MIN:
+                importance = IMPORTANCE_MIN;
+                break;
+            case PRIORITY_LOW:
+                importance = IMPORTANCE_LOW;
+                break;
+            case PRIORITY_DEFAULT:
+                importance = IMPORTANCE_DEFAULT;
+                break;
+            case PRIORITY_HIGH:
+                importance = IMPORTANCE_HIGH;
+                break;
+            case PRIORITY_MAX:
+                importance = IMPORTANCE_MAX;
+                break;
+
+        }
+
+        channelId = Manager.getInstance(context).buildChannelWithOptions(soundUri, shouldVibrate, hasSound, channelName,
+                channelId, importance);
+
+        return channelId;
     }
 
     /**
@@ -353,6 +452,7 @@ public final class Options {
      */
     boolean hasLargeIcon() {
         String icon = options.optString("icon", null);
+        icon = applyDayNightToIconFilename(icon);
         return icon != null;
     }
 
@@ -361,16 +461,57 @@ public final class Options {
      */
     Bitmap getLargeIcon() {
         String icon = options.optString("icon", null);
-        Uri uri     = assets.parse(icon);
-        Bitmap bmp  = null;
+        icon = applyDayNightToIconFilename(icon);
+        int resId = assets.getResId(icon);
+        Bitmap bmp = null;
 
         try {
-            bmp = assets.getIconFromUri(uri);
-        } catch (Exception e){
+            bmp = getBitmapFromDrawable(context, resId);
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
         return bmp;
+    }
+
+    String applyDayNightToIconFilename(String icon) {
+        if(icon == null) return icon;
+        String iconTheme;
+        if (isNightMode(context)){
+            iconTheme = "dark";
+        }else{
+            iconTheme = "light";
+        }
+        return icon.replace(".xml", "_"+iconTheme+".xml");
+    }
+
+    public boolean isNightMode(Context context) {
+        int nightModeFlags = context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return nightModeFlags == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    public static Bitmap getBitmapFromDrawable(Context context, @DrawableRes int drawableId) {
+        Drawable drawable = AppCompatResources.getDrawable(context, drawableId);
+
+        if (drawable instanceof BitmapDrawable) {
+            return ((BitmapDrawable) drawable).getBitmap();
+        } else if (drawable instanceof VectorDrawableCompat || drawable instanceof VectorDrawable) {
+            Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+
+            return bitmap;
+        } else {
+            throw new IllegalArgumentException("unsupported drawable type");
+        }
+    }
+
+    /**
+     * Type of the large icon.
+     */
+    String getLargeIconType() {
+        return options.optString("iconType", DEFAULT_ICON_TYPE);
     }
 
     /**
@@ -378,6 +519,7 @@ public final class Options {
      */
     int getSmallIcon() {
         String icon = options.optString("smallIcon", DEFAULT_ICON);
+        icon = applyDayNightToIconFilename(icon);
         int resId   = assets.getResId(icon);
 
         if (resId == 0) {
@@ -617,9 +759,10 @@ public final class Options {
     }
 
     /**
-     * Gets the list of messages to display.
+     * Gets the list of messages to display. Only returns something, if option text is filled
+     * with a JSONArray. If it is filled with a String, the method will return null.
      *
-     * @return null if there are no messages.
+     * @return null if there are no messages, or option text contains a String.
      */
     Message[] getMessages() {
         Object text = options.opt("text");
@@ -639,12 +782,39 @@ public final class Options {
             JSONObject msg = list.optJSONObject(i);
             String message = msg.optString("message");
             long timestamp = msg.optLong("date", now);
-            String person  = msg.optString("person", null);
+            String personName  = msg.optString("person", null);
+            String personIconString = msg.optString("personIcon", null);
 
-            messages[i] = new Message(message, timestamp, person);
+            IconCompat personIcon = null;
+
+            if (personIconString != null) {
+                try {
+                    Uri personIconUri = assets.parse(personIconString);
+                    Bitmap personIconBitmap = assets.getIconFromUri(personIconUri);
+                    personIconBitmap = AssetUtil.getCircleBitmap(personIconBitmap);
+                    personIcon = IconCompat.createWithBitmap(personIconBitmap);
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+
+            Person sender = new Person.Builder()
+                .setName(personName)
+                .setIcon(personIcon)
+                .build();
+
+            messages[i] = new Message(message, timestamp, sender);
         }
 
         return messages;
+    }
+
+    /**
+     * The message to add to the title to display the number of messages if there is more than one.
+     * Only if using MessagingStytle.
+     */
+    String getTitleCount() {
+        return options.optString("titleCount", null);
     }
 
     /**
@@ -664,6 +834,15 @@ public final class Options {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Gets if the notification shall only alert once.
+     *
+     * @return true if the notification shall only alert once.
+     */
+    public boolean isOnlyAlertOnce(){
+        return options.optBoolean("onlyAlertOnce", false);
     }
 
     /**

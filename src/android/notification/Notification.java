@@ -31,9 +31,9 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.service.notification.StatusBarNotification;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.util.ArraySet;
-import android.support.v4.util.Pair;
+import androidx.core.app.NotificationCompat;
+import androidx.collection.ArraySet;
+import androidx.core.util.Pair;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -51,15 +51,17 @@ import static android.app.AlarmManager.RTC_WAKEUP;
 import static android.app.PendingIntent.FLAG_CANCEL_CURRENT;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.M;
-import static android.support.v4.app.NotificationCompat.PRIORITY_HIGH;
-import static android.support.v4.app.NotificationCompat.PRIORITY_MAX;
-import static android.support.v4.app.NotificationCompat.PRIORITY_MIN;
+import static androidx.core.app.NotificationCompat.PRIORITY_HIGH;
+import static androidx.core.app.NotificationCompat.PRIORITY_MAX;
+import static androidx.core.app.NotificationCompat.PRIORITY_MIN;
 
 /**
  * Wrapper class around OS notification class. Handles basic operations
  * like show, delete, cancel for a single local notification instance.
  */
 public final class Notification {
+
+    private static final String TAG = "Notification";
 
     // Used to differ notifications by their life cycle state
     public enum Type {
@@ -186,10 +188,10 @@ public final class Notification {
      * @param request Set of notification options.
      * @param receiver Receiver to handle the trigger event.
      */
-    void schedule(Request request, Class<?> receiver) {
-            List<Pair<Date, Intent>> intents = new ArrayList<Pair<Date, Intent>>();
-            Set<String> ids = new ArraySet<String>();
-            AlarmManager mgr = getAlarmMgr();
+    public void schedule(Request request, Class<?> receiver) {
+        List<Pair<Date, Intent>> intents = new ArrayList<Pair<Date, Intent>>();
+        Set<String> ids = new ArraySet<String>();
+        AlarmManager mgr = getAlarmMgr();
 
             cancelScheduledAlarms();
 
@@ -211,12 +213,12 @@ public final class Notification {
             }
             while (request.moveNext());
 
-            if (intents.isEmpty()) {
-                unpersist();
-                return;
-            }
+        if (intents.isEmpty()) {
+            unpersist();
+            return;
+        }
 
-            persist(ids);
+        persist(ids);
 
             if (!options.isInfiniteTrigger()) {
                 Intent last = intents.get(intents.size() - 1).second;
@@ -231,54 +233,54 @@ public final class Notification {
                 if (!date.after(new Date()) && trigger(intent, receiver))
                     continue;
 
-                PendingIntent pi = null;
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                        pi = PendingIntent.getBroadcast(
-                            context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
-                } else {
-                        pi = PendingIntent.getBroadcast(
-                            context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
-                }
+            PendingIntent pi = null;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    pi = PendingIntent.getBroadcast(
+                        context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
+            } else {
+                    pi = PendingIntent.getBroadcast(
+                        context, 0, intent, FLAG_CANCEL_CURRENT);
+            }
 
-                try {
-                boolean allowExact = checkAlarmPermission();
+            Log.d(TAG, "Schedule notification, trigger-date: " + date + ", using inexact alarms, prio: " + options.getPrio());
 
-                    switch (options.getPrio()) {
-                        case PRIORITY_MIN:
-                        if (allowExact) {
-                            mgr.setExact(RTC, time, pi);
+            try {
+                // Use inexact alarms to avoid requiring SCHEDULE_EXACT_ALARM permission
+                switch (options.getPrio()) {
+                    case PRIORITY_MIN:
+                        mgr.set(RTC, time, pi);
+                        break;
+                    case PRIORITY_MAX:
+                        // Since Android 6 (SDK Level 23)
+                        if (SDK_INT >= M) {
+                            // Allow alarm to be executed even when the system is in low-power idle (a.k.a. doze) modes.
+                            //
+                            // A reasonable example would be for a calendar notification that should make a sound so the user is aware of it.
+                            // When the alarm is dispatched, the app will also be added to the system's temporary power exemption list for
+                            // approximately 10 seconds to allow that application to acquire further wake locks in which to complete its work.
+                            //
+                            // To reduce abuse, there are restrictions on how frequently these alarms will go off for a particular application.
+                            // Under normal system operation, it will not dispatch these alarms more than about every minute
+                            // (at which point every such pending alarm is dispatched);
+                            // when in low-power idle modes this duration may be significantly longer, such as 15 minutes.
+                            //
+                            // See for informations the Android Developer documentation.
+                            mgr.setAndAllowWhileIdle(RTC_WAKEUP, time, pi);
                         } else {
                             mgr.set(RTC, time, pi);
                         }
-                            break;
-                        case PRIORITY_MAX:
-                            if (SDK_INT >= M) {
-                            if (allowExact) {
-                                mgr.setExactAndAllowWhileIdle(RTC_WAKEUP, time, pi);
-                            } else {
-                                mgr.setAndAllowWhileIdle(RTC_WAKEUP, time, pi);
-                            }
-                        } else {
-                            if (allowExact) {
-                                mgr.setExact(RTC, time, pi);
-                            } else {
-                                mgr.set(RTC, time, pi);
-                            }
-                            }
-                            break;
-                        default:
-                        if (allowExact) {
-                            mgr.setExact(RTC_WAKEUP, time, pi);
-                        } else {
-                            mgr.set(RTC_WAKEUP, time, pi);
-                        }
-                            break;
-                        }
-                    } catch (Exception ignore) {
-                        // Samsung devices have a known bug where a 500 alarms limit
-                        // can crash the app
+                        break;
+                    // Default priority
+                    default:
+                        mgr.set(RTC_WAKEUP, time, pi);
+                        break;
                     }
-            }
+
+                    // Samsung devices have a known bug where a 500 alarms limit
+                    // can crash the app
+                } catch (Exception exception) {
+                    Log.d(TAG, "Exception occurred during scheduling notification", exception);
+                }
         }
 
     /**
@@ -308,7 +310,7 @@ public final class Notification {
      * Clear the local notification without canceling repeating alarms.
      */
     public void clear() {
-        getNotMgr().cancel(getId());
+        getNotMgr().cancel(getAppName(), getId());
         if (isRepeating()) return;
         unpersist();
     }
@@ -319,7 +321,7 @@ public final class Notification {
     public void cancel() {
         cancelScheduledAlarms();
         unpersist();
-        getNotMgr().cancel(getId());
+        getNotMgr().cancel(getAppName(), getId());
         clearCache();
     }
 
@@ -332,12 +334,8 @@ public final class Notification {
      * method and cancel it.
      */
     private void cancelScheduledAlarms() {
-        SharedPreferences prefs = getPrefs(PREF_KEY_PID);
-        String id               = options.getIdentifier();
-        Set<String> actions     = prefs.getStringSet(id, null);
-
-        if (actions == null)
-            return;
+        Set<String> actions = getPrefs(PREF_KEY_PID).getStringSet(options.getIdentifier(), null);
+        if (actions == null) return;
 
         for (String action : actions) {
             Intent intent = new Intent(action);
@@ -348,7 +346,7 @@ public final class Notification {
                     context, 0, intent, PendingIntent.FLAG_IMMUTABLE  );
             } else {
                 pi = PendingIntent.getBroadcast(
-                    context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+                    context, 0, intent, 0);
             }
 
             if (pi != null) {
@@ -368,7 +366,18 @@ public final class Notification {
         }
 
         grantPermissionToPlaySoundFromExternal();
-        getNotMgr().notify(getId(), builder.build());
+        getNotMgr().notify(getAppName(), getId(), builder.build());
+    }
+
+    /**
+     * Get the app name.
+     *
+     * @return String App name.
+     */
+    private String getAppName() {
+        CharSequence appName = context.getPackageManager().getApplicationLabel(context.getApplicationInfo());
+
+        return (String) appName;
     }
 
     /**

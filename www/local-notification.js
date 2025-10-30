@@ -28,7 +28,8 @@ exports._defaults = {
     attachments   : [],
     autoClear     : true,
     badge         : null,
-    channel       : null,
+    channelId     : null,
+    channelName   : null,
     clock         : true,
     color         : null,
     data          : null,
@@ -37,12 +38,14 @@ exports._defaults = {
     group         : null,
     groupSummary  : false,
     icon          : null,
+    iconType      : null,
     id            : 0,
     launch        : true,
     led           : true,
     lockscreen    : true,
     mediaSession  : null,
     number        : 0,
+    onlyAlertOnce : false,
     priority      : 0,
     progressBar   : false,
     silent        : false,
@@ -71,6 +74,18 @@ exports._listener = {};
  */
 exports.hasPermission = function (callback, scope) {
     this._exec('check', null, callback, scope);
+};
+
+/**
+ * Check permission to schedule exact alarms. Android only.
+ *
+ * @param [ Function ] callback The function to be exec as the callback.
+ * @param [ Object ]   scope    The callback function's scope.
+ *
+ * @return [ Void ]
+ */
+exports.canScheduleExactAlarms = function (callback, scope) {
+    this._exec('canScheduleExactAlarms', null, callback, scope);
 };
 
 /**
@@ -542,6 +557,30 @@ exports.fireQueuedEvents = function() {
 };
 
 /**
+ * Open native settings to enable notifications.
+ *
+ * @param [ Function ] callback The function to be exec as the callback.
+ * @param [ Object ]   scope    The callback function's scope.
+ *
+ * @return [ Void ]
+ */
+exports.openNotificationSettings = function (callback, scope) {
+    this._exec('openNotificationSettings', null, callback, scope);
+};
+
+/**
+ * Open native settings to enable alarms & reminders. Android only.
+ *
+ * @param [ Function ] callback The function to be exec as the callback.
+ * @param [ Object ]   scope    The callback function's scope.
+ *
+ * @return [ Void ]
+ */
+exports.openAlarmSettings = function (callback, scope) {
+    this._exec('openAlarmSettings', null, callback, scope);
+};
+
+/**
  * Merge custom properties with the default values.
  *
  * @param [ Object ] options Set of custom values.
@@ -575,7 +614,7 @@ exports._mergeWithDefaults = function (options) {
 
     options.meta = {
         plugin:  'cordova-plugin-local-notification',
-        version: '0.9-beta.3'
+        version: '1.0.1-dev'
     };
 
     return options;
@@ -749,10 +788,6 @@ exports._convertTrigger = function (options) {
         trigger.after = dateToNum(trigger.after);
     }
 
-    if (!trigger.count && device.platform == 'windows') {
-        trigger.count = trigger.every ? 5 : 1;
-    }
-
     if (trigger.count && device.platform == 'iOS') {
         console.warn('trigger: { count: } is not supported on iOS.');
     }
@@ -898,7 +933,7 @@ exports._exec = function (action, args, callback, scope) {
 
     if (Array.isArray(args)) {
         params = args;
-    } else if (args) {
+    } else if (args !== null) {
         params.push(args);
     }
 
