@@ -237,7 +237,7 @@ public final class Notification {
                             context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
                 } else {
                         pi = PendingIntent.getBroadcast(
-                            context, 0, intent, FLAG_CANCEL_CURRENT);
+                            context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
                 }
 
                 try {
@@ -348,7 +348,7 @@ public final class Notification {
                     context, 0, intent, PendingIntent.FLAG_IMMUTABLE  );
             } else {
                 pi = PendingIntent.getBroadcast(
-                    context, 0, intent, 0);
+                    context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
             }
 
             if (pi != null) {
