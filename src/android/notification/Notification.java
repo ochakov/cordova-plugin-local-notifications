@@ -271,6 +271,7 @@ public final class Notification {
                 } catch (Exception exception) {
                     Log.e(TAG, "Failed to schedule alarm for notification " + options.getId() + ": " + exception.getMessage());
                 }
+            }
         }
 
     /**
