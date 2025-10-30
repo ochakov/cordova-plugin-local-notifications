@@ -142,10 +142,11 @@ public final class AssetUtil {
             return Uri.EMPTY;
 
         try {
-            AssetManager assets  = context.getAssets();
-            InputStream in       = assets.open(resPath);
-            FileOutputStream out = new FileOutputStream(file);
-            copyFile(in, out);
+            AssetManager assets = context.getAssets();
+            try (InputStream in = assets.open(resPath);
+                 FileOutputStream out = new FileOutputStream(file)) {
+                copyFile(in, out);
+            }
         } catch (Exception e) {
             Log.e("Asset", "File not found: assets/" + resPath);
             e.printStackTrace();
@@ -193,9 +194,10 @@ public final class AssetUtil {
         if (file == null)
             return Uri.EMPTY;
 
+        HttpURLConnection connection = null;
         try {
             URL url = new URL(path);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection = (HttpURLConnection) url.openConnection();
 
             StrictMode.ThreadPolicy policy =
                     new StrictMode.ThreadPolicy.Builder().permitAll().build();
@@ -206,10 +208,10 @@ public final class AssetUtil {
             connection.setConnectTimeout(5000);
             connection.connect();
 
-            InputStream in       = connection.getInputStream();
-            FileOutputStream out = new FileOutputStream(file);
-
-            copyFile(in, out);
+            try (InputStream in = connection.getInputStream();
+                 FileOutputStream out = new FileOutputStream(file)) {
+                copyFile(in, out);
+            }
             return getUriFromFile(file);
         } catch (MalformedURLException e) {
             Log.e("Asset", "Incorrect URL");
@@ -220,6 +222,10 @@ public final class AssetUtil {
         } catch (IOException e) {
             Log.e("Asset", "No Input can be created from http Stream");
             e.printStackTrace();
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
 
         return Uri.EMPTY;
@@ -227,23 +233,19 @@ public final class AssetUtil {
 
     /**
      * Copy content from input stream into output stream.
+     * Note: Streams are managed by the caller using try-with-resources.
      *
      * @param in  The input stream.
      * @param out The output stream.
      */
-    private void copyFile(InputStream in, FileOutputStream out) {
+    private void copyFile(InputStream in, FileOutputStream out) throws IOException {
         byte[] buffer = new byte[1024];
         int read;
 
-        try {
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            out.flush();
-            out.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
         }
+        out.flush();
     }
 
     /**
@@ -291,8 +293,9 @@ public final class AssetUtil {
      * @param uri Internal image URI
      */
     public Bitmap getIconFromUri(Uri uri) throws IOException {
-        InputStream input = context.getContentResolver().openInputStream(uri);
-        return BitmapFactory.decodeStream(input);
+        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+            return BitmapFactory.decodeStream(input);
+        }
     }
 
     /**

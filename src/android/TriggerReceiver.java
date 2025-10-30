@@ -102,8 +102,9 @@ public class TriggerReceiver extends AbstractTriggerReceiver {
         int level =   PowerManager.SCREEN_DIM_WAKE_LOCK
                     | PowerManager.ACQUIRE_CAUSES_WAKEUP;
 
+        // Use proper WakeLock tag format: "package:tag"
         PowerManager.WakeLock wakeLock = pm.newWakeLock(
-                level, "LocalNotification");
+                level, "cordova-plugin-local-notifications:TriggerReceiver");
 
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(1000);

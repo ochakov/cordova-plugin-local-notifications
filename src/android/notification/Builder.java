@@ -36,7 +36,6 @@ import android.service.notification.StatusBarNotification;
 import android.os.Build;
 
 import java.util.List;
-import java.util.Random;
 
 import de.appplant.cordova.plugin.notification.action.Action;
 import de.appplant.cordova.plugin.notification.util.AssetUtil;
@@ -55,9 +54,6 @@ public final class Builder {
 
     // Notification options passed by JS
     private final Options options;
-
-    // To generate unique request codes
-    private final Random random = new Random();
 
     // Receiver to handle the clear event
     private Class<?> clearReceiver;
@@ -362,7 +358,8 @@ public final class Builder {
             intent.putExtras(extras);
         }
 
-        int reqCode = random.nextInt();
+        // Use notification ID with offset to avoid collisions
+        int reqCode = options.getId() * 10 + 1;
 
         PendingIntent deleteIntent;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -398,7 +395,8 @@ public final class Builder {
             intent.putExtras(extras);
         }
 
-        int reqCode = random.nextInt();
+        // Use notification ID with offset to avoid collisions
+        int reqCode = options.getId() * 10 + 2;
 
         PendingIntent contentIntent ;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -454,7 +452,8 @@ public final class Builder {
             intent.putExtras(extras);
         }
 
-        int reqCode = random.nextInt();
+        // Use notification ID combined with action ID hash to avoid collisions
+        int reqCode = options.getId() * 100 + Math.abs(action.getId().hashCode() % 100);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             return PendingIntent.getActivity(

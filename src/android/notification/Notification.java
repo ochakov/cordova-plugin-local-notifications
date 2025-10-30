@@ -170,19 +170,6 @@ public final class Notification {
     }
 
     /**
-     * For the app with target is android 12, we need to check if the app has “Alarm and Reminders” permission before using them else app throws SecurityException
-     */
-    public boolean checkAlarmPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S){
-            return true;
-        } else {
-            AlarmManager alarmManager = getAlarmMgr();
-            boolean hasPermission = (alarmManager.canScheduleExactAlarms() == true);
-            return hasPermission;
-        }
-    }
-
-    /**
      * Schedule the local notification.
      *
      * @param request Set of notification options.
@@ -233,16 +220,19 @@ public final class Notification {
                 if (!date.after(new Date()) && trigger(intent, receiver))
                     continue;
 
+                // Use notification ID as request code to avoid collisions
+                int requestCode = options.getId();
+
             PendingIntent pi = null;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                     pi = PendingIntent.getBroadcast(
-                        context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
+                        context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
             } else {
                     pi = PendingIntent.getBroadcast(
-                        context, 0, intent, FLAG_CANCEL_CURRENT);
+                        context, requestCode, intent, FLAG_CANCEL_CURRENT);
             }
 
-            Log.d(TAG, "Schedule notification, trigger-date: " + date + ", using inexact alarms, prio: " + options.getPrio());
+            Log.d(TAG, "Schedule notification " + options.getId() + ", trigger-date: " + date + ", using inexact alarms, prio: " + options.getPrio());
 
             try {
                 // Use inexact alarms to avoid requiring SCHEDULE_EXACT_ALARM permission
@@ -279,7 +269,7 @@ public final class Notification {
                     // Samsung devices have a known bug where a 500 alarms limit
                     // can crash the app
                 } catch (Exception exception) {
-                    Log.d(TAG, "Exception occurred during scheduling notification", exception);
+                    Log.e(TAG, "Failed to schedule alarm for notification " + options.getId() + ": " + exception.getMessage());
                 }
         }
 
@@ -340,13 +330,16 @@ public final class Notification {
         for (String action : actions) {
             Intent intent = new Intent(action);
 
+            // Use notification ID as request code to match the one used in schedule()
+            int requestCode = options.getId();
+
             PendingIntent pi = null;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 pi = PendingIntent.getBroadcast(
-                    context, 0, intent, PendingIntent.FLAG_IMMUTABLE  );
+                    context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE  );
             } else {
                 pi = PendingIntent.getBroadcast(
-                    context, 0, intent, 0);
+                    context, requestCode, intent, 0);
             }
 
             if (pi != null) {
