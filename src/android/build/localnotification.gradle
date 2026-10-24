@@ -22,10 +22,8 @@ repositories {
     }
 }
 
-if (!project.ext.has('appShortcutBadgerVersion')) {
-    ext.appShortcutBadgerVersion = '1.1.22'
-}
-
 dependencies {
-    implementation "me.leolin:ShortcutBadger:${appShortcutBadgerVersion}@aar"
+    // Needed for getUnusedAppRestrictionsStatus:
+    // - Class ListenableFuture
+    implementation("com.google.guava:guava:33.4.0-android")
 }
