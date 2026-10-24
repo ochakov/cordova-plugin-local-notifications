@@ -303,7 +303,9 @@ public final class Manager {
     public static PowerManager.WakeLock wakeUpScreen(Context context) {
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         PowerManager.WakeLock wakeLook = powerManager.newWakeLock(
-            PowerManager.SCREEN_DIM_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "LocalNotification");
+            PowerManager.SCREEN_DIM_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            // Tag has to follow the "package:tag" convention
+            "cordova-plugin-local-notifications:wakeUpScreen");
         wakeLook.acquire();
         return wakeLook;
     }
