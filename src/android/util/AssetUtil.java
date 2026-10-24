@@ -241,8 +241,9 @@ public final class AssetUtil {
         String assetFilename = assetPath.substring(assetPath.lastIndexOf('/') + 1);
         File sharedAssetFile = new File(sharedDirectory, assetFilename);
 
-        try {
-            copyFile(context.getAssets().open(assetPath), new FileOutputStream(sharedAssetFile));
+        try (InputStream in = context.getAssets().open(assetPath);
+             FileOutputStream out = new FileOutputStream(sharedAssetFile)) {
+            copyFile(in, out);
         } catch (Exception exception) {
             Log.e(TAG, "File not found: " + assetPath, exception);
             return Uri.EMPTY;
@@ -302,7 +303,9 @@ public final class AssetUtil {
      * Convert Uri to Bitmap.
      */
     public Bitmap getBitmapFromUri(Uri uri) throws IOException {
-        return BitmapFactory.decodeStream(context.getContentResolver().openInputStream(uri));
+        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+            return BitmapFactory.decodeStream(input);
+        }
     }
 
     /**
@@ -364,22 +367,18 @@ public final class AssetUtil {
 
     /**
      * Copy content from input stream into output stream.
+     * The streams are not closed here, the caller is responsible for closing them.
      *
      * @param in  The input stream.
      * @param out The output stream.
      */
-    public static void copyFile(InputStream in, FileOutputStream out) {
+    public static void copyFile(InputStream in, FileOutputStream out) throws IOException {
         byte[] buffer = new byte[1024];
         int read;
 
-        try {
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            out.flush();
-            out.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
         }
+        out.flush();
     }
 }
